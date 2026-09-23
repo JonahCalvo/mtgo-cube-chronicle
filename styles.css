@@ -13,6 +13,10 @@ select { background:var(--surface); color:var(--text); border:1px solid var(--bo
 .lineage-date { min-height:36px; display:flex; align-items:center; font-size:14px; line-height:18px; margin:0 0 14px; color:var(--muted); text-wrap:balance; overflow-wrap:anywhere }
 .card-stack { position:relative; isolation:isolate } .card-stack.repeated:before,.card-stack.repeated:after { content:''; position:absolute; inset:-5px 3px 0; border:1px solid #61717d; border-radius:8px; background:#263542; z-index:-1 } .card-stack.repeated:before { inset:-9px 6px 0; border-color:#43545f; background:#1b2b37 }
 .card-button { display:block; width:100%; position:relative; padding:0; background:#0d1319; border:0; text-align:left; border-radius:8px; cursor:zoom-in; box-shadow:0 3px 6px #0005; touch-action:manipulation; transition:transform .15s } .card-button:hover { transform:translateY(-3px) }
+.timeline-link { cursor:pointer }
+.card-zoom { position:absolute; right:5px; bottom:5px; z-index:2; display:grid; place-items:center; width:28px; height:28px; padding:0; color:#e8edf0; background:#10171edb; border:1px solid #61717d; border-radius:5px; cursor:zoom-in; opacity:0; transition:opacity .15s }
+.card-stack:hover .card-zoom,.card-stack:focus-within .card-zoom { opacity:1 }
+@media(hover:none) { .card-zoom { opacity:1 } }
 .card-picture { display:block; aspect-ratio:488/680; position:relative; overflow:hidden; border-radius:8px; background:#18212a } .card-picture img { display:block; width:100%; height:100%; object-fit:cover; position:relative; z-index:1; pointer-events:none; user-select:none }
 .image-fallback { display:flex; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:15px; font-size:14px; gap:8px } .image-fallback small { font-size:12px; color:var(--muted) }
 .lineage-note { display:block; margin-top:10px; font-size:14px; line-height:18px; color:var(--muted); text-wrap:balance } .lineage-gap { aspect-ratio:488/680; border:1px dashed var(--muted); border-radius:8px; padding:8px; color:var(--muted) }

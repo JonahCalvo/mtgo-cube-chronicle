@@ -58,9 +58,23 @@ export function followLineage(versions, pairings, startIndex, startId) {
   }
   return nodes;
 }
+// The selected snapshot identifies an occurrence, not a history cutoff.
+export function followSlot(versions, pairings, selectedIndex, selectedId) {
+  if (!versions[selectedIndex]?.cards.some(card => identity(card) === selectedId)) return [];
+  let index = selectedIndex, id = selectedId;
+  while (index > 0) {
+    if (!versions[index - 1].cards.some(card => identity(card) === id)) {
+      const incoming = (pairings[transitionKey(versions, index - 1)] || []).find(pair => pair.add === id);
+      if (!incoming) break;
+      id = incoming.cut;
+    }
+    index--;
+  }
+  return followLineage(versions, pairings, index, id);
+}
 // Reintroductions are additional views of existing slots, never new pairings.
 export function indexHistory(versions, pairings) {
-  const lastSeen = new Map(), reintroductions = [], replaced = new Set();
+  const lastSeen = new Map(), reintroductions = [], inclusions = [], replaced = new Set();
   for (let index = 0; index < versions.length; index++) {
     const previous = byIdentity(versions[index - 1]?.cards || []);
     const current = byIdentity(versions[index].cards);
@@ -68,13 +82,15 @@ export function indexHistory(versions, pairings) {
     const incoming = new Map((index ? pairings[transitionKey(versions, index - 1)] || [] : []).map(p => [p.add, p.cut]));
     for (const card of versions[index].cards) {
       const id = identity(card);
-      if (lastSeen.has(id) && !previous.has(id)) {
-        reintroductions.push({ index, id, card, previousIndex: lastSeen.get(id), replacedCard: previous.get(incoming.get(id)) || null });
+      if (!previous.has(id)) {
+        const event = { index, id, card, previousIndex: lastSeen.get(id) ?? null, replacedCard: previous.get(incoming.get(id)) || null, isReintroduction: lastSeen.has(id) };
+        inclusions.push(event);
+        if (event.isReintroduction) reintroductions.push(event);
       }
       lastSeen.set(id, index);
     }
   }
-  return { reintroductions, neverReplaced: new Set([...lastSeen.keys()].filter(id => !replaced.has(id))) };
+  return { inclusions, reintroductions, neverReplaced: new Set([...lastSeen.keys()].filter(id => !replaced.has(id))) };
 }
 export function lineageCardGroups(cards, history) {
   const sorted = sortCards(cards);
@@ -84,20 +100,22 @@ export function lineageCardGroups(cards, history) {
   return groups;
 }
 export function followEvolution(versions, pairings, startIndex, startId, history = indexHistory(versions, pairings)) {
-  const primary = { id: 0, parentId: null, nodes: followLineage(versions, pairings, startIndex, startId) };
+  const primary = { id: 0, parentId: null, selectedIndex: startIndex, nodes: followSlot(versions, pairings, startIndex, startId) };
   if (!primary.nodes.length) return [];
-  const paths = [primary], covered = new Map();
-  const key = (index, id) => `${index}:${id}`;
-  const cover = path => { for (const node of path.nodes) if (node.card) covered.set(key(node.index, identity(node.card)), path.id); };
-  cover(primary);
-  // Only the chosen starting card can create alternate lanes. Replacement
-  // cards continue along their slots but never expand this card's history.
-  for (const event of history.reintroductions) {
-    if (event.id !== startId || event.index <= startIndex || covered.has(key(event.index, event.id))) continue;
-    const parentId = covered.get(key(event.previousIndex, event.id));
-    if (parentId === undefined) continue;
-    const path = { id: paths.length, parentId, reintroduction: event, nodes: followLineage(versions, pairings, event.index, event.id) };
-    paths.push(path); cover(path);
+  const paths = [primary];
+  const slotKey = nodes => `${nodes[0].index}:${identity(nodes[0].card)}`;
+  const seenSlots = new Set([slotKey(primary.nodes)]);
+  // Search the entire archive, including the card's first inclusion and
+  // returns before the selected occurrence. Each physical slot appears once.
+  // Alternate rows retain the faded immediate predecessor; clicking them
+  // promotes that occurrence to the main row and reveals its full back-history.
+  for (const event of history.inclusions) {
+    if (event.id !== startId) continue;
+    const fullSlot = followSlot(versions, pairings, event.index, event.id);
+    const root = slotKey(fullSlot);
+    if (seenSlots.has(root)) continue;
+    seenSlots.add(root);
+    paths.push({ id: paths.length, parentId: 0, inclusion: event, reintroduction: event.isReintroduction ? event : null, nodes: fullSlot.filter(node => node.index >= event.index) });
   }
   return paths;
 }
@@ -109,13 +127,15 @@ export function alignEvolution(paths) {
     for (const run of runs[i]) { boundaries.add(run.index); boundaries.add(run.endIndex + 1); }
     // A faded predecessor is context from the snapshot immediately before
     // the return, not another replacement link or a new historical run.
-    if (path.reintroduction?.replacedCard) boundaries.add(path.reintroduction.index - 1);
+    const entry = path.inclusion || path.reintroduction;
+    if (entry?.replacedCard) boundaries.add(entry.index - 1);
   }
   const points = [...boundaries].sort((a, b) => a - b);
   const columns = points.slice(0, -1).map((index, i) => ({ index, endIndex: points[i + 1] - 1, count: points[i + 1] - index }));
   const rows = paths.map((path, i) => ({ ...path, cells: columns.map(column => {
-    if (path.reintroduction?.replacedCard && column.index === path.reintroduction.index - 1) {
-      return { ...column, card: path.reintroduction.replacedCard, ghost: true, continued: false };
+    const entry = path.inclusion || path.reintroduction;
+    if (entry?.replacedCard && column.index === entry.index - 1) {
+      return { ...column, card: entry.replacedCard, ghost: true, continued: false };
     }
     const run = runs[i].find(run => run.index <= column.index && run.endIndex >= column.index);
     if (!run) return null;

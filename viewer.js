@@ -1,4 +1,4 @@
-import { identity, sortCards, normalizePairings, followLineage, snapshotDate, stackLineage, fitLineage, indexHistory, lineageCardGroups, followEvolution, alignEvolution } from './cube-model.mjs?v=aligned-returns-1';
+import { identity, sortCards, normalizePairings, followSlot, snapshotDate, stackLineage, fitLineage, indexHistory, lineageCardGroups, followEvolution, alignEvolution } from './cube-model.mjs?v=slot-navigation-1';
 
 // This separate viewer loads a published snapshot only. It has no editing,
 // storage, import, or network-write path and never loads the editor application.
@@ -11,6 +11,34 @@ let fitPaths = true;
 function cardPicture(card, loading = 'lazy') {
   const image = images[card.printingId]?.faces[0];
   return `<span class="card-picture"><span class="image-fallback" aria-hidden="true">${escapeHTML(card.name)}<small>Image unavailable</small></span>${image ? `<img src="${escapeHTML(image.normal)}" alt="${escapeHTML(card.name)}" width="488" height="680" loading="${loading}" decoding="async" draggable="false">` : ''}</span>`;
+}
+function cardHref(index, id) {
+  const url = new URL(location.href);
+  url.searchParams.set('version', versions[index].id);
+  url.searchParams.set('card', id);
+  url.hash = '';
+  return `${url.pathname}${url.search}`;
+}
+function timelineCard(card, index) {
+  return `<a class="card-button timeline-link" href="${escapeHTML(cardHref(index, identity(card)))}" data-card-link="${identity(card)}" data-version="${index}" aria-label="View history for ${escapeHTML(card.name)}">${cardPicture(card, 'eager')}</a><button class="card-zoom" type="button" data-preview="${card.printingId}" aria-label="Enlarge ${escapeHTML(card.name)}" title="Enlarge card"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></svg></button>`;
+}
+function writeSelectionURL(replace = false) {
+  const href = cardHref(Number($('#lineage-version').value), selectedCard);
+  if (`${location.pathname}${location.search}${location.hash}` !== href) window.history[replace ? 'replaceState' : 'pushState'](null, '', href);
+}
+function readSelectionURL() {
+  const params = new URLSearchParams(location.search);
+  const index = versions.findIndex(version => version.id === params.get('version'));
+  if (index >= 0 && versions[index].cards.some(card => identity(card) === params.get('card'))) return { index, id: params.get('card') };
+  return { index: 0, id: identity(versions[0].cards.find(card => card.name === 'Elite Vanguard') || versions[0].cards[0]) };
+}
+function navigateToCard(index, id, writeURL = true) {
+  if (!versions[index]?.cards.some(card => identity(card) === id)) return;
+  $('#lineage-version').value = String(index);
+  populateLineageCards(id);
+  renderLineage();
+  if (writeURL) writeSelectionURL();
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 function populateLineageCards(preferred) {
   const groups = lineageCardGroups(versions[Number($('#lineage-version').value)].cards, history);
@@ -26,7 +54,7 @@ function selectCard(id, render = true) {
   $('#lineage-card').classList.toggle('never-replaced', history.neverReplaced.has(id));
   $('#card-options').querySelectorAll('[role="option"]').forEach(option => option.setAttribute('aria-selected', String(option.dataset.card === id)));
   closeCardOptions();
-  if (render) renderLineage();
+  if (render) { renderLineage(); writeSelectionURL(); }
 }
 function focusOption(index) {
   activeOption = Math.max(0, Math.min(selectorCards.length - 1, index));
@@ -47,34 +75,40 @@ function closeCardOptions() {
   typeahead = ''; clearTimeout(typeaheadTimer);
 }
 function selectedLineage() {
-  return followLineage(versions, pairings, Number($('#lineage-version').value), selectedCard);
+  return followSlot(versions, pairings, Number($('#lineage-version').value), selectedCard);
 }
 function renderTrack(path) {
   return `<div class="lineage-track">${stackLineage(path.nodes).map(node => {
-    const first = snapshotDate(versions[node.index]), last = snapshotDate(versions[node.endIndex]);
-    const range = first === last ? first : `${first} – ${last}`;
-    const duration = `Lasted ${node.count} revision${node.count === 1 ? '' : 's'}`;
-    return `<article class="lineage-node" aria-label="${escapeHTML(node.card?.name || 'Unlinked slot')}, ${escapeHTML(range)}, ${duration}">
+    const range = dateRange(node), duration = durationLabel(node.count, node.endIndex);
+    return `<article class="lineage-node" data-index="${node.index}" data-end-index="${node.endIndex}" data-card-id="${node.card ? identity(node.card) : ''}" aria-label="${escapeHTML(node.card?.name || 'Unlinked slot')}, ${escapeHTML(range)}, ${duration}">
       <div class="lineage-date">${escapeHTML(range)}</div>
-      ${node.card ? `<div class="card-stack ${node.count > 1 ? 'repeated' : ''}"><button class="card-button" data-preview="${node.card.printingId}" aria-label="Enlarge ${escapeHTML(node.card.name)}">${cardPicture(node.card, 'eager')}</button></div><span class="lineage-note">${duration}</span>` : '<div class="lineage-gap">History unavailable</div>'}
+      ${node.card ? `<div class="card-stack ${node.count > 1 ? 'repeated' : ''}">${timelineCard(node.card, node.index)}</div><span class="lineage-note">${duration}</span>` : '<div class="lineage-gap">History unavailable</div>'}
     </article>`;
   }).join('')}</div>`;
 }
 function dateRange(node) {
-  const first = snapshotDate(versions[node.index]), last = snapshotDate(versions[node.endIndex]);
+  const first = snapshotDate(versions[node.index]), last = node.endIndex === versions.length - 1 ? 'present' : snapshotDate(versions[node.endIndex]);
   return first === last ? first : `${first} – ${last}`;
+}
+function durationLabel(count, endIndex) {
+  return `${endIndex === versions.length - 1 ? 'Present ·' : 'Lasted'} ${count} revision${count === 1 ? '' : 's'}`;
+}
+function pathHeading(path) {
+  const entry = path.inclusion;
+  if (!entry) return 'Selected slot · full history';
+  return `${entry.isReintroduction ? 'Reintroduced' : 'First inclusion'} ${snapshotDate(versions[entry.index])}${entry.replacedCard ? `, replacing ${entry.replacedCard.name}` : ''}`;
 }
 function renderAlignedTimeline() {
   const axis = `<div class="timeline-axis" aria-label="Shared timeline dates">${alignedTimeline.columns.map(column => `<div class="timeline-date" data-index="${column.index}" data-end-index="${column.endIndex}">${escapeHTML(dateRange(column))}</div>`).join('')}</div>`;
-  const rows = alignedTimeline.rows.map(path => `<section class="evolution-path" id="path-${path.id}" aria-label="${path.id ? 'Reintroduction' : 'Original'} path"><h2 class="path-heading">${path.reintroduction ? `Reintroduced ${escapeHTML(snapshotDate(versions[path.reintroduction.index]))}, replacing ${escapeHTML(path.reintroduction.replacedCard?.name || 'an unlinked card')}` : 'Original path'}</h2><div class="aligned-track">${path.cells.map((cell, column) => {
+  const rows = alignedTimeline.rows.map(path => `<section class="evolution-path" id="path-${path.id}" aria-label="${path.id ? 'Other inclusion' : 'Selected slot'} path"><h2 class="path-heading">${escapeHTML(pathHeading(path))}</h2><div class="aligned-track">${path.cells.map((cell, column) => {
     if (!cell) return '<div class="timeline-empty" aria-hidden="true"></div>';
     if (!cell.card) return '<div class="lineage-gap">History unavailable</div>';
     const next = path.cells[column + 1];
     const same = next?.card && !cell.ghost && !next.ghost && identity(cell.card) === identity(next.card);
-    const duration = `Lasted ${cell.runCount} revision${cell.runCount === 1 ? '' : 's'}`;
-    const note = cell.ghost ? 'Replaced' : cell.continued ? 'Continued' : duration;
-    const description = cell.ghost ? `${cell.card.name}, replaced in ${snapshotDate(versions[path.reintroduction.index])}` : `${cell.card.name}, ${dateRange(cell)}. ${cell.continued ? 'Same card continuing. ' : ''}${duration} in the full run, ${dateRange({ index: cell.runIndex, endIndex: cell.runEndIndex })}.`;
-    return `<article class="timeline-cell ${cell.ghost ? 'predecessor' : ''} ${cell.continued ? 'continuation' : ''}" data-index="${cell.index}" data-end-index="${cell.endIndex}" data-card-id="${identity(cell.card)}" aria-label="${escapeHTML(description)}" title="${escapeHTML(description)}"><div class="card-stack ${!cell.ghost && cell.runCount > 1 ? 'repeated' : ''}"><button class="card-button" data-preview="${cell.card.printingId}" aria-label="Enlarge ${escapeHTML(cell.card.name)}${cell.ghost ? ', replaced card' : ''}">${cardPicture(cell.card, 'eager')}</button></div><span class="lineage-note">${note}</span>${next?.card ? `<span class="timeline-connector ${same ? 'unchanged' : ''}" aria-label="${same ? 'Unchanged' : cell.ghost ? 'Reintroduced here' : 'Replaced by'}">${same ? '—' : '→'}</span>` : ''}</article>`;
+    const duration = durationLabel(cell.runCount, cell.runEndIndex);
+    const note = cell.ghost ? 'Replaced' : cell.continued ? (cell.endIndex === versions.length - 1 ? 'Present' : 'Continued') : duration;
+    const description = cell.ghost ? `${cell.card.name}, replaced in ${snapshotDate(versions[path.inclusion.index])}` : `${cell.card.name}, ${dateRange(cell)}. ${cell.continued ? 'Same card continuing. ' : ''}${duration} in the full run, ${dateRange({ index: cell.runIndex, endIndex: cell.runEndIndex })}.`;
+    return `<article class="timeline-cell ${cell.ghost ? 'predecessor' : ''} ${cell.continued ? 'continuation' : ''}" data-index="${cell.index}" data-end-index="${cell.endIndex}" data-card-id="${identity(cell.card)}" aria-label="${escapeHTML(description)}" title="${escapeHTML(description)}"><div class="card-stack ${!cell.ghost && cell.runCount > 1 ? 'repeated' : ''}">${timelineCard(cell.card, cell.index)}</div><span class="lineage-note">${note}</span>${next?.card ? `<span class="timeline-connector ${same ? 'unchanged' : ''}" aria-label="${same ? 'Unchanged' : cell.ghost ? 'Reintroduced here' : 'Replaced by'}">${same ? '—' : '→'}</span>` : ''}</article>`;
   }).join('')}</div></section>`).join('');
   return `<div class="evolution-paths">${axis}${rows}</div>`;
 }
@@ -89,7 +123,8 @@ function renderLineage() {
   const count = activePaths.reduce((n, path) => n + stackLineage(path.nodes).filter(node => node.card).length, 0);
   const snapshots = activePaths[0]?.nodes.filter(node => node.card).length || 0;
   $('#lineage-summary').textContent = `${snapshots} snapshot${snapshots === 1 ? '' : 's'} · ${branching ? `${activePaths.length} paths · ` : ''}${count} card${count === 1 ? '' : 's'}`;
-  $('#atlas-caption').textContent = activePaths.some(path => path.nodes.at(-1)?.state === 'gap') ? 'One published timeline has an unlinked transition.' : `${branching ? 'All paths through' : 'Through'} ${snapshotDate(versions.at(-1))}`;
+  $('#atlas-caption').textContent = activePaths.some(path => path.nodes.at(-1)?.state === 'gap') ? 'One published timeline has an unlinked transition.' : `Click any card to follow its slot. Latest snapshot: ${snapshotDate(versions.at(-1))}.`;
+  document.title = `${selectorCards.find(card => identity(card) === selectedCard).name} · Cube Chronicle`;
   requestAnimationFrame(sizeLineage);
 }
 function sizeLineage() {
@@ -135,7 +170,8 @@ function previewCard(printing) {
   $('#card-preview').showModal();
 }
 function attachEvents(survivors) {
-  $('#lineage-version').addEventListener('change', () => { populateLineageCards(selectedCard); renderLineage(); });
+  $('#lineage-version').addEventListener('change', () => { populateLineageCards(selectedCard); renderLineage(); writeSelectionURL(); });
+  window.addEventListener('popstate', () => { const selection = readSelectionURL(); navigateToCard(selection.index, selection.id, false); });
   $('#fit-paths').addEventListener('click', () => { fitPaths = !fitPaths; $('#fit-paths').setAttribute('aria-pressed', String(fitPaths)); sizeLineage(); });
   $('#lineage-card').addEventListener('click', () => $('#card-options').hidden ? openCardOptions() : closeCardOptions());
   $('#card-options').addEventListener('click', event => { const option = event.target.closest('[data-card]'); if (option) { selectCard(option.dataset.card); $('#lineage-card').focus(); } });
@@ -160,6 +196,13 @@ function attachEvents(survivors) {
   window.addEventListener('resize', sizeLineage);
   document.fonts?.ready.then(sizeLineage);
   document.addEventListener('click', event => {
+    const link = event.target.closest('[data-card-link]');
+    if (link && event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      navigateToCard(Number(link.dataset.version), link.dataset.cardLink);
+      $('#lineage-card').focus({ preventScroll: true });
+      return;
+    }
     const button = event.target.closest('[data-preview]'); if (button) previewCard(button.dataset.preview);
   });
   $('#close-preview').addEventListener('click', () => $('#card-preview').close());
@@ -177,13 +220,14 @@ function registerReadTool() {
   try {
     Promise.resolve(context.registerTool({
       name: 'get_selected_cube_timeline', title: 'Read the selected card timeline',
-      description: 'Read the starting card’s original slot and its own reintroduction paths, with replaced cards, shared timeline ranges, and continuous run counts. Does not change the selection or any links.',
+      description: 'Read the selected occurrence’s full slot history and the card’s other inclusions, including earlier ones, with replaced cards, shared timeline ranges, and continuous run counts. Does not change the selection or any links.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute(input) {
         if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) throw new Error('This read-only tool takes an empty object.');
-        const describe = nodes => stackLineage(nodes).map(node => ({ card: node.card?.name || null, from: snapshotDate(versions[node.index]), through: snapshotDate(versions[node.endIndex]), revisions: node.count }));
-        return { readOnly: true, branchScope: 'starting-card-only', timeline: describe(selectedLineage()), columns: alignedTimeline.columns.map(column => ({ from: snapshotDate(versions[column.index]), through: snapshotDate(versions[column.endIndex]) })), paths: activePaths.map(path => ({ id: path.id + 1, reintroduced: path.reintroduction ? { card: path.reintroduction.card.name, replacing: path.reintroduction.replacedCard?.name || null, date: snapshotDate(versions[path.reintroduction.index]) } : null, timeline: describe(path.nodes) })) };
+        const through = index => index === versions.length - 1 ? 'present' : snapshotDate(versions[index]);
+        const describe = nodes => stackLineage(nodes).map(node => ({ card: node.card?.name || null, from: snapshotDate(versions[node.index]), through: through(node.endIndex), revisions: node.count }));
+        return { readOnly: true, branchScope: 'selected-card-only', selectedVersion: versions[Number($('#lineage-version').value)].id, selectedCard, latestSnapshot: snapshotDate(versions.at(-1)), timeline: describe(selectedLineage()), columns: alignedTimeline.columns.map(column => ({ from: snapshotDate(versions[column.index]), through: through(column.endIndex) })), paths: activePaths.map(path => ({ id: path.id + 1, inclusion: path.inclusion ? { card: path.inclusion.card.name, isReintroduction: path.inclusion.isReintroduction, replacing: path.inclusion.replacedCard?.name || null, date: snapshotDate(versions[path.inclusion.index]) } : null, timeline: describe(path.nodes) })) };
       },
     }, { signal: lifecycle.signal })).catch(() => {});
   } catch { /* Reading the site does not depend on browser tool support. */ }
@@ -198,13 +242,14 @@ async function boot() {
     versions = archive.versions; images = imageData; pairings = normalizePairings(defaults.pairings, versions); history = indexHistory(versions, pairings);
     $('#archive-range').textContent = `${snapshotDate(versions[0])} – ${snapshotDate(versions.at(-1))} · ${versions.length} snapshots · ${versions[0].cards.length} slots`;
     $('#lineage-version').innerHTML = versions.map((v, i) => `<option value="${i}">${escapeHTML(v.label)} · ${escapeHTML(snapshotDate(v))}</option>`).join('');
-    $('#lineage-version').value = '0'; populateLineageCards('Elite Vanguard');
+    const selection = readSelectionURL();
+    $('#lineage-version').value = String(selection.index); populateLineageCards(selection.id);
     const sets = versions.map(v => new Set(v.cards.map(identity)));
     const survivors = sortCards(versions[0].cards.filter(c => sets.every(set => set.has(identity(c)))));
     $('#survivor-summary').textContent = `${survivors.length} cards in every snapshot`;
     $('#lineage-version').disabled = false; $('#lineage-card').disabled = false;
     $('#lineage-canvas').hidden = false; $('.survivors').hidden = false;
-    attachEvents(survivors); renderLineage(); registerReadTool();
+    attachEvents(survivors); renderLineage(); writeSelectionURL(true); registerReadTool();
     $('#app').setAttribute('aria-busy', 'false');
   } catch (error) {
     $('#load-error').hidden = false; $('#load-error').textContent = `${error.message} Refresh to try again.`;
