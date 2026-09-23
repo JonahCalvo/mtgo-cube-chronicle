@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=branches-1">
   <title>MTGO Cube Chronicle — Viewer</title>
 </head>
 <body>
@@ -23,8 +23,9 @@
       <div class="view-heading"><h1>Follow a slot through time</h1><p id="archive-range">Loading cube history…</p></div>
       <div class="lineage-controls">
         <label>Starting version<select id="lineage-version" disabled><option>Loading…</option></select></label>
-        <label>Starting card<select id="lineage-card" disabled><option>Loading…</option></select></label>
+        <div class="card-selector"><span id="card-selector-label">Starting card</span><button id="lineage-card" type="button" role="combobox" aria-labelledby="card-selector-label card-selection" aria-haspopup="listbox" aria-expanded="false" aria-controls="card-options" disabled><span id="card-selection">Loading…</span><span aria-hidden="true">⌄</span></button><div id="card-options" role="listbox" aria-labelledby="card-selector-label" hidden></div></div>
         <span id="lineage-summary" aria-live="polite"></span>
+        <button id="fit-paths" type="button" aria-pressed="true" title="Toggle between a fitted overview and larger cards" hidden>Fit all paths</button>
       </div>
       <div id="lineage-canvas" hidden></div>
       <p id="atlas-caption"></p>
@@ -34,6 +35,6 @@
   </main>
   <footer><span>Lists: <a href="https://cubecobra.com/cube/list/mtgo-holiday-v1" target="_blank" rel="noreferrer">Cube Cobra</a> · <a href="https://www.mtgo.com/vintage-cube-cardlist" target="_blank" rel="noreferrer">MTGO</a> · Images: <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a></span></footer>
   <dialog id="card-preview" aria-label="Card preview"><button id="close-preview" class="icon-button" aria-label="Close preview">×</button><div id="preview-faces"></div><p id="preview-printing"></p></dialog>
-  <script type="module" src="viewer.js?v=final-reviewed-1"></script>
+  <script type="module" src="viewer.js?v=branches-1"></script>
 </body>
 </html>
