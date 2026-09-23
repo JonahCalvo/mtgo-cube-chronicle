@@ -1,4 +1,4 @@
-import { identity, sortCards, normalizePairings, followSlot, snapshotDate, stackLineage, fitLineage, indexHistory, lineageCardGroups, followEvolution, alignEvolution } from './cube-model.mjs?v=slot-navigation-1';
+import { identity, sortCards, normalizePairings, followSlot, snapshotDate, stackLineage, indexHistory, lineageCardGroups, followEvolution, alignEvolution } from './cube-model.mjs?v=aligned-single-1';
 
 // This separate viewer loads a published snapshot only. It has no editing,
 // storage, import, or network-write path and never loads the editor application.
@@ -77,15 +77,6 @@ function closeCardOptions() {
 function selectedLineage() {
   return followSlot(versions, pairings, Number($('#lineage-version').value), selectedCard);
 }
-function renderTrack(path) {
-  return `<div class="lineage-track">${stackLineage(path.nodes).map(node => {
-    const range = dateRange(node), duration = durationLabel(node.count, node.endIndex);
-    return `<article class="lineage-node" data-index="${node.index}" data-end-index="${node.endIndex}" data-card-id="${node.card ? identity(node.card) : ''}" aria-label="${escapeHTML(node.card?.name || 'Unlinked slot')}, ${escapeHTML(range)}, ${duration}">
-      <div class="lineage-date">${escapeHTML(range)}</div>
-      ${node.card ? `<div class="card-stack ${node.count > 1 ? 'repeated' : ''}">${timelineCard(node.card, node.index)}</div><span class="lineage-note">${duration}</span>` : '<div class="lineage-gap">History unavailable</div>'}
-    </article>`;
-  }).join('')}</div>`;
-}
 function dateRange(node) {
   const first = snapshotDate(versions[node.index]), last = node.endIndex === versions.length - 1 ? 'present' : snapshotDate(versions[node.endIndex]);
   return first === last ? first : `${first} – ${last}`;
@@ -100,7 +91,7 @@ function pathHeading(path) {
 }
 function renderAlignedTimeline() {
   const axis = `<div class="timeline-axis" aria-label="Shared timeline dates">${alignedTimeline.columns.map(column => `<div class="timeline-date" data-index="${column.index}" data-end-index="${column.endIndex}">${escapeHTML(dateRange(column))}</div>`).join('')}</div>`;
-  const rows = alignedTimeline.rows.map(path => `<section class="evolution-path" id="path-${path.id}" aria-label="${path.id ? 'Other inclusion' : 'Selected slot'} path"><h2 class="path-heading">${escapeHTML(pathHeading(path))}</h2><div class="aligned-track">${path.cells.map((cell, column) => {
+  const rows = alignedTimeline.rows.map(path => `<section class="evolution-path" id="path-${path.id}" aria-label="${path.id ? 'Other inclusion' : 'Selected slot'} path">${activePaths.length > 1 ? `<h2 class="path-heading">${escapeHTML(pathHeading(path))}</h2>` : ''}<div class="aligned-track">${path.cells.map((cell, column) => {
     if (!cell) return '<div class="timeline-empty" aria-hidden="true"></div>';
     if (!cell.card) return '<div class="lineage-gap">History unavailable</div>';
     const next = path.cells[column + 1];
@@ -116,9 +107,10 @@ function renderLineage() {
   activePaths = followEvolution(versions, pairings, Number($('#lineage-version').value), selectedCard, history);
   const branching = activePaths.length > 1;
   alignedTimeline = alignEvolution(activePaths);
-  $('#lineage-canvas').classList.toggle('aligned', branching);
-  $('#fit-paths').hidden = !branching;
-  $('#lineage-canvas').innerHTML = branching ? renderAlignedTimeline() : `<div class="evolution-paths"><section class="evolution-path">${renderTrack(activePaths[0])}</section></div>`;
+  $('#lineage-canvas').classList.add('aligned');
+  $('#fit-paths').hidden = alignedTimeline.columns.length < 2;
+  $('#fit-paths').textContent = branching ? 'Fit all paths' : 'Fit timeline';
+  $('#lineage-canvas').innerHTML = renderAlignedTimeline();
   $('#lineage-canvas').scrollLeft = 0;
   const count = activePaths.reduce((n, path) => n + stackLineage(path.nodes).filter(node => node.card).length, 0);
   const snapshots = activePaths[0]?.nodes.filter(node => node.card).length || 0;
@@ -132,19 +124,7 @@ function sizeLineage() {
   if (!board?.children.length) return;
   canvas.classList.remove('fit-overview');
   canvas.style.height = ''; board.style.width = ''; board.style.transform = ''; board.style.left = '';
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
   const height = Math.max(220, window.innerHeight - (canvas.getBoundingClientRect().top + window.scrollY) - 144);
-  const setTrack = (track, columns, width) => {
-    track.style.setProperty('--lineage-columns', columns);
-    track.style.setProperty('--lineage-card-width', `${width}px`);
-    [...track.children].forEach((node, i) => node.classList.toggle('row-end', (i + 1) % columns === 0));
-  };
-  if (activePaths.length === 1) {
-    const track = canvas.querySelector('.lineage-track');
-    const layout = fitLineage(track.children.length, canvas.clientWidth - 36, height - 32, rem * 5.5, 24);
-    setTrack(track, layout.columns, layout.cardWidth);
-    return;
-  }
   const columns = alignedTimeline.columns.length, availableWidth = canvas.clientWidth - 36;
   const desktop = window.innerWidth > 755;
   const width = fitPaths && desktop ? Math.max(64, Math.min(200, Math.floor((availableWidth - 24 * (columns - 1)) / columns))) : 150;

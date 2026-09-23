@@ -10,6 +10,8 @@ Parallel paths are stacked vertically on shared date columns. The card displaced
 
 Click any timeline card, including a faded predecessor, to open that occurrence's full slot history. Earlier inclusions on other slots appear as parallel rows. Each selection has a shareable URL using stable version/card IDs, with browser Back/Forward support. Use the small enlarge button on a card to inspect its full-size original-printing image.
 
+Single paths use the same aligned date axis and straight, left-to-right card row as parallel paths—never a wrapping grid. Desktop fits the complete timeline by default; toggle **Fit timeline** off for larger cards. On mobile, swipe horizontally along the timeline.
+
 ## Hosting
 
 This repository contains only the public viewer. GitHub Pages serves the root of the `main` branch. There is no backend, editing interface, or browser-persisted pairing data.
