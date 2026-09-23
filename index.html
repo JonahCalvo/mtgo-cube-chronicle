@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10171e">
+  <meta name="description" content="Explore the evolution of the MTGO powered cube, from 2012 to 2026. Follow 540 card slots across 47 snapshots.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://cards.scryfall.io" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <title>MTGO Cube Chronicle — Viewer</title>
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="./"><img src="favicon.svg" width="28" height="28" alt=""><span>Cube <strong>Chronicle</strong></span><small>MTGO</small></a>
+    <span class="read-only">Read-only</span>
+  </header>
+  <main id="app" aria-busy="true">
+    <section id="evolution-view" aria-label="Cube evolution">
+      <div class="view-heading"><h1>Follow a slot through time</h1><p id="archive-range">Loading cube history…</p></div>
+      <div class="lineage-controls">
+        <label>Starting version<select id="lineage-version" disabled><option>Loading…</option></select></label>
+        <label>Starting card<select id="lineage-card" disabled><option>Loading…</option></select></label>
+        <span id="lineage-summary" aria-live="polite"></span>
+      </div>
+      <div id="lineage-canvas" hidden></div>
+      <p id="atlas-caption"></p>
+      <details class="survivors" hidden><summary id="survivor-summary">Cards in every snapshot</summary><div id="survivor-list" class="survivor-grid"></div></details>
+    </section>
+    <p id="load-error" class="error-message" role="alert" hidden></p>
+  </main>
+  <footer><span>Lists: <a href="https://cubecobra.com/cube/list/mtgo-holiday-v1" target="_blank" rel="noreferrer">Cube Cobra</a> · <a href="https://www.mtgo.com/vintage-cube-cardlist" target="_blank" rel="noreferrer">MTGO</a> · Images: <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a></span></footer>
+  <dialog id="card-preview" aria-label="Card preview"><button id="close-preview" class="icon-button" aria-label="Close preview">×</button><div id="preview-faces"></div><p id="preview-printing"></p></dialog>
+  <script type="module" src="viewer.js?v=coherent-1"></script>
+</body>
+</html>
