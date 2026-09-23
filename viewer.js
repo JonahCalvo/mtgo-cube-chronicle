@@ -214,7 +214,7 @@ function registerReadTool() {
 }
 async function boot() {
   try {
-    const [archive, imageData, defaults] = await Promise.all(['cube-data.json', 'card-images.json', 'default-pairings.json?v=curated-green-1'].map(async path => {
+    const [archive, imageData, defaults] = await Promise.all(['cube-data.json', 'card-images.json', 'default-pairings.json?v=curated-roles-1'].map(async path => {
       const response = await fetch(path);
       if (!response.ok) throw new Error('Cube history could not be loaded.');
       return response.json();

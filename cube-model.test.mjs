@@ -41,6 +41,21 @@ test('later returns of the starting card are still included after the first alte
 const versions = JSON.parse(fs.readFileSync(new URL('cube-data.json', import.meta.url))).versions;
 const pairings = JSON.parse(fs.readFileSync(new URL('default-pairings.json', import.meta.url))).pairings;
 const history = indexHistory(versions, pairings);
+test('approved role swaps preserve all six chosen replacements', () => {
+  for (const [index, cut, replacement] of [
+    [1, 'Keldon Marauders', 'Guttersnipe'],
+    [1, 'Plated Geopede', 'Borderland Marauder'],
+    [20, 'Siege-Gang Commander', 'Goblin Bombardment'],
+    [20, 'Flame Spill', 'Jokulhaups'],
+    [33, "Stitcher's Supplier", 'Overlord of the Balemurk'],
+    [33, 'Bloodghast', 'Metamorphosis Fanatic'],
+  ]) {
+    const card = versions[index].cards.find(card => card.name === cut);
+    const slot = followSlot(versions, pairings, index, identity(card));
+    assert.equal(slot[index + 1].card.name, replacement);
+    assert.equal(slot.length, versions.length);
+  }
+});
 test('approved October 2021 swap separates top-of-library deployment from creature tutors', () => {
   const turntimber = versions[18].cards.find(card => card.name.startsWith('Turntimber Symbiosis'));
   const command = versions[18].cards.find(card => card.name === 'Primal Command');
