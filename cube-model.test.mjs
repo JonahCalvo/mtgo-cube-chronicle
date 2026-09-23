@@ -41,6 +41,15 @@ test('later returns of the starting card are still included after the first alte
 const versions = JSON.parse(fs.readFileSync(new URL('cube-data.json', import.meta.url))).versions;
 const pairings = JSON.parse(fs.readFileSync(new URL('default-pairings.json', import.meta.url))).pairings;
 const history = indexHistory(versions, pairings);
+test('approved October 2021 swap separates top-of-library deployment from creature tutors', () => {
+  const turntimber = versions[18].cards.find(card => card.name.startsWith('Turntimber Symbiosis'));
+  const command = versions[18].cards.find(card => card.name === 'Primal Command');
+  const podRoute = followSlot(versions, pairings, 18, identity(command));
+  const deploymentRoute = followSlot(versions, pairings, 18, identity(turntimber));
+  assert.equal(podRoute[19].card.name, 'Birthing Pod');
+  assert.equal(deploymentRoute[19].card.name, 'Storm the Festival');
+  assert.deepEqual(stackLineage(deploymentRoute).map(node => node.card.name.split(' // ')[0]), ['Tooth and Nail', 'Turntimber Symbiosis', 'Storm the Festival', 'Kogla, the Titan Ape', 'Generous Ent']);
+});
 test('Shelldock Isle includes its June 2015 return replacing Windbrisk Heights', () => {
   const id = identity(versions[0].cards.find(c => c.name === 'Shelldock Isle'));
   const paths = followEvolution(versions, pairings, 0, id, history);
