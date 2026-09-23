@@ -4,9 +4,9 @@ A read-only visual history of the MTGO powered cube: 47 snapshots from December 
 
 The viewer uses original-printing images from Scryfall. Consecutive appearances are stacked; replacement links are curated interpretations, not claims that every pair is an official direct upgrade.
 
-When a card returns in a different slot, its return appears as a parallel path labeled with the card it replaced. Later reintroductions on those branches are followed recursively. Every lane continues to the latest snapshot; the underlying one-to-one replacement links are unchanged. Never-replaced cards remain selectable in a muted group at the bottom of the card selector.
+Only the selected starting card's off-slot reintroductions create alternate paths. Reintroductions of later replacement cards do not branch. Every row continues to the latest snapshot; the underlying one-to-one replacement links are unchanged. Never-replaced cards remain selectable in a muted group at the bottom of the card selector.
 
-Numbered branch links connect the source card to its returning path. Desktop families open in a fitted overview; toggle **Fit all paths** off for larger cards. Mobile keeps readable cards and scrolls vertically. Click any card to see its full-size original-printing image.
+Parallel paths are stacked vertically on shared date columns. The card displaced by a reintroduction appears faded and grey in the preceding snapshot. Runs are split at changes on either row: repeated images labeled **Continued** are the same uninterrupted run, not extra replacements. The first image retains the full **Lasted X revisions** count. Desktop opens in a fitted overview; toggle **Fit all paths** off for larger cards. Mobile keeps the rows aligned in a shared horizontal scroller. Click any card to see its full-size original-printing image.
 
 ## Hosting
 

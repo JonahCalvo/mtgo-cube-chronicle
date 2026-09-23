@@ -1,10 +1,10 @@
-import { identity, sortCards, normalizePairings, followLineage, snapshotDate, stackLineage, fitLineage, indexHistory, lineageCardGroups, followEvolution } from './cube-model.mjs?v=branches-1';
+import { identity, sortCards, normalizePairings, followLineage, snapshotDate, stackLineage, fitLineage, indexHistory, lineageCardGroups, followEvolution, alignEvolution } from './cube-model.mjs?v=aligned-returns-1';
 
 // This separate viewer loads a published snapshot only. It has no editing,
 // storage, import, or network-write path and never loads the editor application.
 const $ = selector => document.querySelector(selector);
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char]);
-let versions = [], images = {}, pairings = {}, history, activePaths = [], selectedCard = '', activeOption = 0;
+let versions = [], images = {}, pairings = {}, history, activePaths = [], alignedTimeline, selectedCard = '', activeOption = 0;
 let selectorCards = [], typeahead = '', typeaheadTimer;
 let fitPaths = true;
 
@@ -54,19 +54,38 @@ function renderTrack(path) {
     const first = snapshotDate(versions[node.index]), last = snapshotDate(versions[node.endIndex]);
     const range = first === last ? first : `${first} – ${last}`;
     const duration = `Lasted ${node.count} revision${node.count === 1 ? '' : 's'}`;
-    const children = activePaths.filter(child => child.parentId === path.id && child.reintroduction.previousIndex === node.endIndex && child.reintroduction.id === identity(node.card || {}));
     return `<article class="lineage-node" aria-label="${escapeHTML(node.card?.name || 'Unlinked slot')}, ${escapeHTML(range)}, ${duration}">
       <div class="lineage-date">${escapeHTML(range)}</div>
-      ${node.card ? `<div class="card-stack ${node.count > 1 ? 'repeated' : ''}"><button class="card-button" data-preview="${node.card.printingId}" aria-label="Enlarge ${escapeHTML(node.card.name)}">${cardPicture(node.card, 'eager')}</button>${children.map(child => `<button class="branch-jump" data-path="${child.id}" aria-label="Follow ${escapeHTML(node.card.name)} reintroduced in ${escapeHTML(snapshotDate(versions[child.reintroduction.index]))}, path ${child.id + 1}">↳ ${child.id + 1}</button>`).join('')}</div><span class="lineage-note">${duration}</span>` : '<div class="lineage-gap">History unavailable</div>'}
+      ${node.card ? `<div class="card-stack ${node.count > 1 ? 'repeated' : ''}"><button class="card-button" data-preview="${node.card.printingId}" aria-label="Enlarge ${escapeHTML(node.card.name)}">${cardPicture(node.card, 'eager')}</button></div><span class="lineage-note">${duration}</span>` : '<div class="lineage-gap">History unavailable</div>'}
     </article>`;
   }).join('')}</div>`;
+}
+function dateRange(node) {
+  const first = snapshotDate(versions[node.index]), last = snapshotDate(versions[node.endIndex]);
+  return first === last ? first : `${first} – ${last}`;
+}
+function renderAlignedTimeline() {
+  const axis = `<div class="timeline-axis" aria-label="Shared timeline dates">${alignedTimeline.columns.map(column => `<div class="timeline-date" data-index="${column.index}" data-end-index="${column.endIndex}">${escapeHTML(dateRange(column))}</div>`).join('')}</div>`;
+  const rows = alignedTimeline.rows.map(path => `<section class="evolution-path" id="path-${path.id}" aria-label="${path.id ? 'Reintroduction' : 'Original'} path"><h2 class="path-heading">${path.reintroduction ? `Reintroduced ${escapeHTML(snapshotDate(versions[path.reintroduction.index]))}, replacing ${escapeHTML(path.reintroduction.replacedCard?.name || 'an unlinked card')}` : 'Original path'}</h2><div class="aligned-track">${path.cells.map((cell, column) => {
+    if (!cell) return '<div class="timeline-empty" aria-hidden="true"></div>';
+    if (!cell.card) return '<div class="lineage-gap">History unavailable</div>';
+    const next = path.cells[column + 1];
+    const same = next?.card && !cell.ghost && !next.ghost && identity(cell.card) === identity(next.card);
+    const duration = `Lasted ${cell.runCount} revision${cell.runCount === 1 ? '' : 's'}`;
+    const note = cell.ghost ? 'Replaced' : cell.continued ? 'Continued' : duration;
+    const description = cell.ghost ? `${cell.card.name}, replaced in ${snapshotDate(versions[path.reintroduction.index])}` : `${cell.card.name}, ${dateRange(cell)}. ${cell.continued ? 'Same card continuing. ' : ''}${duration} in the full run, ${dateRange({ index: cell.runIndex, endIndex: cell.runEndIndex })}.`;
+    return `<article class="timeline-cell ${cell.ghost ? 'predecessor' : ''} ${cell.continued ? 'continuation' : ''}" data-index="${cell.index}" data-end-index="${cell.endIndex}" data-card-id="${identity(cell.card)}" aria-label="${escapeHTML(description)}" title="${escapeHTML(description)}"><div class="card-stack ${!cell.ghost && cell.runCount > 1 ? 'repeated' : ''}"><button class="card-button" data-preview="${cell.card.printingId}" aria-label="Enlarge ${escapeHTML(cell.card.name)}${cell.ghost ? ', replaced card' : ''}">${cardPicture(cell.card, 'eager')}</button></div><span class="lineage-note">${note}</span>${next?.card ? `<span class="timeline-connector ${same ? 'unchanged' : ''}" aria-label="${same ? 'Unchanged' : cell.ghost ? 'Reintroduced here' : 'Replaced by'}">${same ? '—' : '→'}</span>` : ''}</article>`;
+  }).join('')}</div></section>`).join('');
+  return `<div class="evolution-paths">${axis}${rows}</div>`;
 }
 function renderLineage() {
   activePaths = followEvolution(versions, pairings, Number($('#lineage-version').value), selectedCard, history);
   const branching = activePaths.length > 1;
-  $('#lineage-canvas').classList.toggle('has-branches', branching);
+  alignedTimeline = alignEvolution(activePaths);
+  $('#lineage-canvas').classList.toggle('aligned', branching);
   $('#fit-paths').hidden = !branching;
-  $('#lineage-canvas').innerHTML = `<div class="evolution-paths">${activePaths.map(path => `<section class="evolution-path" id="path-${path.id}" tabindex="-1" aria-label="Path ${path.id + 1}${path.reintroduction ? `: ${escapeHTML(path.reintroduction.card.name)} reintroduced` : ': original slot'}">${branching ? `<header class="path-heading"><span class="path-number">${path.id + 1}</span><div>${path.reintroduction ? `<h2>Reintroduced, replacing ${escapeHTML(path.reintroduction.replacedCard?.name || 'an unlinked card')}</h2><button class="parent-path" data-path="${path.parentId}">↳ From path ${path.parentId + 1} · ${escapeHTML(path.reintroduction.card.name.split(' // ')[0])}</button>` : '<h2>Original path</h2>'}</div></header>` : ''}${renderTrack(path)}</section>`).join('')}</div>`;
+  $('#lineage-canvas').innerHTML = branching ? renderAlignedTimeline() : `<div class="evolution-paths"><section class="evolution-path">${renderTrack(activePaths[0])}</section></div>`;
+  $('#lineage-canvas').scrollLeft = 0;
   const count = activePaths.reduce((n, path) => n + stackLineage(path.nodes).filter(node => node.card).length, 0);
   const snapshots = activePaths[0]?.nodes.filter(node => node.card).length || 0;
   $('#lineage-summary').textContent = `${snapshots} snapshot${snapshots === 1 ? '' : 's'} · ${branching ? `${activePaths.length} paths · ` : ''}${count} card${count === 1 ? '' : 's'}`;
@@ -76,7 +95,6 @@ function renderLineage() {
 function sizeLineage() {
   const canvas = $('#lineage-canvas'), board = canvas.firstElementChild;
   if (!board?.children.length) return;
-  const tracks = [...canvas.querySelectorAll('.lineage-track')];
   canvas.classList.remove('fit-overview');
   canvas.style.height = ''; board.style.width = ''; board.style.transform = ''; board.style.left = '';
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -86,50 +104,28 @@ function sizeLineage() {
     track.style.setProperty('--lineage-card-width', `${width}px`);
     [...track.children].forEach((node, i) => node.classList.toggle('row-end', (i + 1) % columns === 0));
   };
-  if (tracks.length === 1) {
-    board.style.setProperty('--path-columns', 1);
-    const layout = fitLineage(tracks[0].children.length, canvas.clientWidth - 36, height - 32, rem * 5.5, 24);
-    setTrack(tracks[0], layout.columns, layout.cardWidth);
+  if (activePaths.length === 1) {
+    const track = canvas.querySelector('.lineage-track');
+    const layout = fitLineage(track.children.length, canvas.clientWidth - 36, height - 32, rem * 5.5, 24);
+    setTrack(track, layout.columns, layout.cardWidth);
     return;
   }
-  // Fit complete lanes into the viewport when possible. At the readability
-  // floor, let a complex family extend vertically; never hide a branch.
-  const applyLayout = width => {
-    for (const track of tracks) {
-      const panelWidth = Math.min(board.clientWidth, Math.max(210, track.children.length * (width + 24) + 10));
-      track.parentElement.style.width = `${panelWidth}px`;
-      const count = Math.max(1, Math.min(track.children.length, Math.floor((track.clientWidth + 24) / (width + 24))));
-      setTrack(track, count, Math.min(width, track.clientWidth));
-    }
-    return board.getBoundingClientRect().height;
-  };
-  let best = { width: 86, height: applyLayout(86), fits: false };
-  // Short lanes take only the width they need, so they do not leave large
-  // empty grid cells beside a longer history.
-  for (let width = 180; width >= 64; width -= 4) {
-    const usedHeight = applyLayout(width);
-    if (usedHeight <= height - 16) { best = { width, height: usedHeight, fits: true }; break; }
-    if (usedHeight < best.height) best = { width, height: usedHeight, fits: false };
-  }
-  applyLayout(best.width);
-  if (fitPaths && canvas.clientWidth >= 700 && best.height > height - 16) {
-    let fitted = null;
-    for (const multiplier of [1, 1.25, 1.5, 2]) {
-      const boardWidth = Math.floor(canvas.clientWidth * multiplier);
-      board.style.width = `${boardWidth}px`;
-      for (const width of [100, 120, 140]) {
-        const boardHeight = applyLayout(width);
-        const scale = Math.min(1, canvas.clientWidth / boardWidth, (height - 16) / boardHeight);
-        const score = (width + 30) * scale;
-        if (!fitted || score > fitted.score) fitted = { width, boardWidth, boardHeight, scale, score };
-      }
-    }
-    board.style.width = `${fitted.boardWidth}px`; applyLayout(fitted.width);
+  const columns = alignedTimeline.columns.length, availableWidth = canvas.clientWidth - 36;
+  const desktop = window.innerWidth > 755;
+  const width = fitPaths && desktop ? Math.max(64, Math.min(200, Math.floor((availableWidth - 24 * (columns - 1)) / columns))) : 150;
+  board.style.setProperty('--timeline-columns', columns);
+  board.style.setProperty('--timeline-card-width', `${width}px`);
+  const boardWidth = columns * width + 24 * (columns - 1);
+  board.style.width = `${boardWidth}px`;
+  const boardHeight = board.getBoundingClientRect().height;
+  const scale = fitPaths && desktop ? Math.min(1, availableWidth / boardWidth, (height - 32) / boardHeight) : 1;
+  if (scale < 1) {
     canvas.classList.add('fit-overview');
-    canvas.style.height = `${Math.ceil(fitted.boardHeight * fitted.scale)}px`;
-    board.style.left = `${(canvas.clientWidth - fitted.boardWidth * fitted.scale) / 2}px`;
-    board.style.transform = `scale(${fitted.scale})`;
+    canvas.style.height = `${Math.ceil(boardHeight * scale) + 34}px`;
+    board.style.left = '18px';
+    board.style.transform = `scale(${scale})`;
   }
+  if (fitPaths && desktop) canvas.scrollLeft = 0;
 }
 function previewCard(printing) {
   const entry = images[printing];
@@ -165,8 +161,6 @@ function attachEvents(survivors) {
   document.fonts?.ready.then(sizeLineage);
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-preview]'); if (button) previewCard(button.dataset.preview);
-    const jump = event.target.closest('[data-path]');
-    if (jump) { const path = document.getElementById(`path-${jump.dataset.path}`); path?.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); path?.focus({ preventScroll: true }); }
   });
   $('#close-preview').addEventListener('click', () => $('#card-preview').close());
   $('#card-preview').addEventListener('click', event => { if (event.target === $('#card-preview')) $('#card-preview').close(); });
@@ -183,13 +177,13 @@ function registerReadTool() {
   try {
     Promise.resolve(context.registerTool({
       name: 'get_selected_cube_timeline', title: 'Read the selected card timeline',
-      description: 'Read the selected cube slot and every parallel reintroduction path, with replacement names, date ranges, and consecutive revision counts. Does not change the selection or any links.',
+      description: 'Read the starting card’s original slot and its own reintroduction paths, with replaced cards, shared timeline ranges, and continuous run counts. Does not change the selection or any links.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute(input) {
         if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) throw new Error('This read-only tool takes an empty object.');
         const describe = nodes => stackLineage(nodes).map(node => ({ card: node.card?.name || null, from: snapshotDate(versions[node.index]), through: snapshotDate(versions[node.endIndex]), revisions: node.count }));
-        return { readOnly: true, timeline: describe(selectedLineage()), paths: activePaths.map(path => ({ id: path.id + 1, parentId: path.parentId === null ? null : path.parentId + 1, reintroduced: path.reintroduction ? { card: path.reintroduction.card.name, replacing: path.reintroduction.replacedCard?.name || null, date: snapshotDate(versions[path.reintroduction.index]) } : null, timeline: describe(path.nodes) })) };
+        return { readOnly: true, branchScope: 'starting-card-only', timeline: describe(selectedLineage()), columns: alignedTimeline.columns.map(column => ({ from: snapshotDate(versions[column.index]), through: snapshotDate(versions[column.endIndex]) })), paths: activePaths.map(path => ({ id: path.id + 1, reintroduced: path.reintroduction ? { card: path.reintroduction.card.name, replacing: path.reintroduction.replacedCard?.name || null, date: snapshotDate(versions[path.reintroduction.index]) } : null, timeline: describe(path.nodes) })) };
       },
     }, { signal: lifecycle.signal })).catch(() => {});
   } catch { /* Reading the site does not depend on browser tool support. */ }

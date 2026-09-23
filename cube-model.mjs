@@ -90,16 +90,38 @@ export function followEvolution(versions, pairings, startIndex, startId, history
   const key = (index, id) => `${index}:${id}`;
   const cover = path => { for (const node of path.nodes) if (node.card) covered.set(key(node.index, identity(node.card)), path.id); };
   cover(primary);
-  // Events are chronological. A newly added lane can itself produce later
-  // branches, while covered occurrences prevent duplicate lanes and cycles.
+  // Only the chosen starting card can create alternate lanes. Replacement
+  // cards continue along their slots but never expand this card's history.
   for (const event of history.reintroductions) {
-    if (event.index <= startIndex || covered.has(key(event.index, event.id))) continue;
+    if (event.id !== startId || event.index <= startIndex || covered.has(key(event.index, event.id))) continue;
     const parentId = covered.get(key(event.previousIndex, event.id));
     if (parentId === undefined) continue;
     const path = { id: paths.length, parentId, reintroduction: event, nodes: followLineage(versions, pairings, event.index, event.id) };
     paths.push(path); cover(path);
   }
   return paths;
+}
+export function alignEvolution(paths) {
+  if (!paths.length) return { columns: [], rows: [] };
+  const boundaries = new Set();
+  const runs = paths.map(path => stackLineage(path.nodes));
+  for (const [i, path] of paths.entries()) {
+    for (const run of runs[i]) { boundaries.add(run.index); boundaries.add(run.endIndex + 1); }
+    // A faded predecessor is context from the snapshot immediately before
+    // the return, not another replacement link or a new historical run.
+    if (path.reintroduction?.replacedCard) boundaries.add(path.reintroduction.index - 1);
+  }
+  const points = [...boundaries].sort((a, b) => a - b);
+  const columns = points.slice(0, -1).map((index, i) => ({ index, endIndex: points[i + 1] - 1, count: points[i + 1] - index }));
+  const rows = paths.map((path, i) => ({ ...path, cells: columns.map(column => {
+    if (path.reintroduction?.replacedCard && column.index === path.reintroduction.index - 1) {
+      return { ...column, card: path.reintroduction.replacedCard, ghost: true, continued: false };
+    }
+    const run = runs[i].find(run => run.index <= column.index && run.endIndex >= column.index);
+    if (!run) return null;
+    return { ...column, card: run.card, state: run.state, ghost: false, continued: column.index > run.index, runIndex: run.index, runEndIndex: run.endIndex, runCount: run.count };
+  }) }));
+  return { columns, rows };
 }
 export function snapshotDate(version) {
   const match = version.cubeName?.match(/\(([A-Za-z]{3})(\d{2})\)/);

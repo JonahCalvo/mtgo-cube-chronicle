@@ -34,25 +34,25 @@ footer { max-width:1920px; margin:auto; padding:18px 28px; color:#9aa7b1; font-s
 [role="option"][aria-selected="true"] { box-shadow:inset 3px 0 var(--teal); background:#263740 }
 .muted-options { border-top:1px solid var(--border); margin-top:8px }
 .muted-options .option-heading,.muted-options [role="option"] { color:#98a1a8 }
-.evolution-paths { display:grid; grid-template-columns:repeat(var(--path-columns,1),minmax(0,1fr)); gap:16px; align-items:start }
+.evolution-paths { position:relative }
 .evolution-path { min-width:0; border-radius:8px }
-.has-branches { background:none!important; border:0!important; padding:0!important }
-.has-branches .evolution-paths { display:flex; flex-wrap:wrap; align-items:start }
+#lineage-canvas.aligned { overflow:auto }
 #lineage-canvas.fit-overview { position:relative; overflow:hidden }
-.fit-overview .evolution-paths { position:absolute; top:0; transform-origin:top left }
+.fit-overview .evolution-paths { position:absolute; top:16px; transform-origin:top left }
 #fit-paths { align-self:center; background:var(--surface); color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:7px 10px; font-size:12px }
 #fit-paths[aria-pressed="true"] { color:var(--teal); border-color:#4c776f }
-.has-branches .evolution-path { background:#151e26; border:1px solid var(--border); padding:14px 16px 16px }
-.evolution-path:focus-visible { outline:2px solid var(--teal); outline-offset:3px }
-.path-heading { display:flex; align-items:start; gap:10px; margin-bottom:20px; min-height:46px }
-.path-number { flex:none; display:grid; place-items:center; width:24px; height:24px; border:1px solid #4c776f; border-radius:6px; color:var(--teal); font-size:12px; font-variant-numeric:tabular-nums }
-.path-heading h2 { margin:2px 0 4px; font-size:14px; font-weight:500; line-height:19px }
-.parent-path { padding:0; border:0; background:none; color:var(--muted); font-size:12px; text-align:left; line-height:17px }
-.parent-path:hover { color:var(--teal) }
-.branch-jump { position:absolute; z-index:2; bottom:6px; right:5px; padding:3px 6px; border:1px solid #80baad; border-radius:5px; background:#102f29; color:#b5e7dc; font-size:12px; box-shadow:0 1px 6px #0008 }
-.has-branches .lineage-track { justify-content:start }
-.has-branches .lineage-date,.has-branches .lineage-note { font-size:12px; line-height:16px }
-.has-branches .lineage-date { min-height:32px; margin-bottom:12px }
-.has-branches .lineage-note { margin-top:8px }
-@media(max-width:650px) { .card-selector { width:100% } #lineage-card { min-width:0; padding:9px 8px } #card-options { left:auto; right:0 } .path-heading h2 { font-size:14px } }
+.timeline-axis,.aligned-track { display:grid; grid-template-columns:repeat(var(--timeline-columns),var(--timeline-card-width)); gap:24px; align-items:start }
+.timeline-axis { padding-bottom:14px; border-bottom:1px solid var(--border); margin-bottom:14px }
+.timeline-date { font-size:14px; line-height:19px; color:var(--muted); text-wrap:balance; overflow-wrap:anywhere }
+.aligned .evolution-path + .evolution-path { border-top:1px solid var(--border); margin-top:20px; padding-top:16px }
+.path-heading { margin:0 0 18px; font-size:14px; line-height:20px; font-weight:500; color:var(--text) }
+.timeline-cell { min-width:0; position:relative }
+.timeline-cell .lineage-note { min-height:36px; font-size:14px; line-height:18px }
+.timeline-connector { position:absolute; right:-20px; top:calc(var(--timeline-card-width) * .63); color:var(--teal); font-size:20px }
+.timeline-connector.unchanged { color:#64747e; font-size:16px }
+.predecessor .card-button { filter:grayscale(1); opacity:.3; box-shadow:none }
+.predecessor .card-button:hover,.predecessor .card-button:focus-visible { opacity:.65 }
+.predecessor .lineage-note,.continuation .lineage-note { color:#81919c }
+.timeline-empty { align-self:stretch; border-left:1px dashed #2b374155 }
+@media(max-width:650px) { .card-selector { width:100% } #lineage-card { min-width:0; padding:9px 8px } #card-options { left:auto; right:0 } .timeline-date,.timeline-cell .lineage-note { font-size:12px } }
 @media(max-width:755px) { #fit-paths { display:none } }
