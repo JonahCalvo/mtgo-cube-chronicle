@@ -56,6 +56,22 @@ test('approved role swaps preserve all six chosen replacements', () => {
     assert.equal(slot.length, versions.length);
   }
 });
+test('approved red-role swaps preserve replacements and reunite Rite of Flame', () => {
+  for (const [index, cut, replacement] of [
+    [7, 'Kargan Dragonlord', 'Glorybringer'],
+    [7, 'Magus of the Wheel', 'Desperate Ritual'],
+    [28, 'Daretti, Scrap Savant', 'Demand Answers'],
+    [28, 'Shrapnel Blast', 'Reckless Charge'],
+  ]) {
+    const card = versions[index].cards.find(card => card.name === cut);
+    const slot = followSlot(versions, pairings, index, identity(card));
+    assert.equal(slot[index + 1].card.name, replacement);
+    assert.equal(slot.length, versions.length);
+  }
+  const rite = versions[27].cards.find(card => card.name === 'Rite of Flame');
+  const slot = followSlot(versions, pairings, 27, identity(rite));
+  assert.deepEqual(slot.slice(27, 31).map(node => node.card.name), ['Rite of Flame', 'Shrapnel Blast', 'Reckless Charge', 'Rite of Flame']);
+});
 test('approved October 2021 swap separates top-of-library deployment from creature tutors', () => {
   const turntimber = versions[18].cards.find(card => card.name.startsWith('Turntimber Symbiosis'));
   const command = versions[18].cards.find(card => card.name === 'Primal Command');
